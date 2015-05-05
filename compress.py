@@ -149,7 +149,7 @@ class Compress(Validator):
 			@type overwrite: bool
 
 			@return: True if stream
-			@rtype: str | None
+			@rtype: None
 		"""
 		if compression_type is None:
 			compression_type = self.get_compression_type(dst)
@@ -191,7 +191,7 @@ class Compress(Validator):
 			@attention: When reading file and compression_type None, type will be guessed.
 
 			@param list_of_file_paths: Path to file
-			@type list_of_file_paths: str | unicode
+			@type list_of_file_paths: list[str|unicode]
 			@param dst: Destination path, a directory or file path
 			@type dst: str | unicode
 			@param compresslevel: Higher level is slower but likely smaller. 0-9, except zip 0-8.
@@ -204,7 +204,7 @@ class Compress(Validator):
 			@type max_processors: int
 
 			@return: True if stream
-			@rtype: str | None
+			@rtype: None
 		"""
 		assert self.validate_dir(dst), "Bad destination: '{}'".format(dst)
 		task_list = []
@@ -216,18 +216,21 @@ class Compress(Validator):
 				msg = "File not found '{}'".format(file_path)
 				self._logger.error(msg)
 				raise IOError(msg)
-		runThreadParallel(task_list, maxThreads=max_processors)
+		list_of_return_values = runThreadParallel(task_list, maxThreads=max_processors)
+		for index, return_value in enumerate(list_of_return_values):
+			assert return_value is None, "Compressing of '{}' failed. '{}'".format(list_of_file_paths[index], return_value)
 
 
 def _compress_file(src, dst='./', compresslevel=5, compression_type=None, overwrite=False):
 	# TODO: make this unnecessary
+	# workaround since pickling a method is a pain
 	"""
-		Compress a file. Workaround since a class is a pain to pickle!
+		Compress a file
 
 		@attention: When reading file and compression_type None, type will be guessed.
 
-		@param list_of_file_paths: Path to file
-		@type list_of_file_paths: str | unicode
+		@param src: Path to file
+		@type src: str | unicode
 		@param dst: Destination path, a directory or file path
 		@type dst: str | unicode
 		@param compresslevel: Higher level is slower but likely smaller. 0-9, except zip 0-8.
@@ -236,11 +239,15 @@ def _compress_file(src, dst='./', compresslevel=5, compression_type=None, overwr
 		@type compression_type: str | unicode
 		@param overwrite: If false, a path will renamed if not available
 		@type overwrite: bool
-		@param max_processors: Maximum number processors used for compressing files simultaneously
-		@type max_processors: int
 
 		@return: True if stream
-		@rtype: str | None
+		@rtype: None
 	"""
-	compressor = Compress(compression_type)
-	compressor.compress_file(src, dst, compresslevel, compression_type, overwrite)
+	try:
+		compressor = Compress(compression_type)
+		compressor.compress_file(src, dst, compresslevel, compression_type, overwrite)
+	except AssertionError as e:
+		return e.message
+	except IOError as e:
+		return e.message
+	return None
