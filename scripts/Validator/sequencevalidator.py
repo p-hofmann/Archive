@@ -1,5 +1,5 @@
 __author__ = 'hofmann'
-__version__ = '0.0.3'
+__version__ = '0.0.6'
 
 import io
 import os
@@ -9,6 +9,8 @@ from Bio import SeqIO
 from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 from validator import Validator
+
+# Todo: allow for multiple sequence_type
 
 
 class SequenceValidator(Validator):
@@ -38,18 +40,52 @@ class SequenceValidator(Validator):
 
 	_legal_text_characters = string.printable
 
-	@staticmethod
-	def _is_stream(stream):
+	def validate_folder_with_sequence_files(
+		self, directory, file_format, sequence_type, ambiguous, file_extension, key=None, silent=False):
 		"""
-			Test for streams
+			Validate a file to be correctly formatted
 
-			@param stream: Any kind of stream type
-			@type stream: file | io.FileIO | StringIO.StringIO
+			@attention: Currently only phred quality for fastq files
 
-			@return: True if stream
+			@param directory: Path to directory with files containing sequences
+			@type directory: str | unicode
+			@param file_format: Format of the file at the file_path provided. Valid: 'fasta', 'fastq'
+			@type file_format: str | unicode
+			@param sequence_type: Are the sequences DNA or RNA? Valid: 'rna', 'dna', 'protein'
+			@type sequence_type: str | unicode
+			@param ambiguous: True or False, DNA example for strict 'GATC',  ambiguous example 'GATCRYWSMKHBVDN'
+			@type ambiguous: bool
+			@param file_extension: file extension to be filtered for. Example: '.fasta' '.fq'
+			@type file_extension: basestring | None
+			@param key: If True, no error message will be made
+			@type key: basestring | None
+			@param silent: If True, no error message will be made
+			@type silent: bool
+
+			@return: True if the file is correctly formatted
 			@rtype: bool
 		"""
-		return isinstance(stream, (file, io.FileIO, StringIO.StringIO)) or stream.__class__ is StringIO.StringIO
+		list_of_file_paths = self.get_files_in_directory(directory, file_extension)
+		result = True
+		for file_path in list_of_file_paths:
+			if not self.validate_sequence_file(file_path, file_format, sequence_type, ambiguous, key, silent):
+				result = False
+		return result
+
+	def _validate_sequence_record(self, seq_record, set_of_seq_id, file_format, key=None, silent=False):
+			result = True
+			if not self.validate_sequence(seq_record.seq, key=key, silent=silent):
+				result = False
+			if not self.validate_sequence_id(seq_record.id, used_ids=set_of_seq_id, key=key, silent=silent):
+				result = False
+			set_of_seq_id.add(seq_record.id)
+			if not self.validate_sequence_description(seq_record.description, key=key, silent=silent):
+				result = False
+			if file_format == "fastq":
+				if not self.validate_sequence_quality(
+					seq_record.letter_annotations["phred_quality"], key=key, silent=silent):
+					result = False
+			return result
 
 	def validate_sequence_file(self, file_path, file_format, sequence_type, ambiguous, key=None, silent=False):
 		"""
@@ -101,19 +137,7 @@ class SequenceValidator(Validator):
 			try:
 				for seq_record in SeqIO.parse(file_handle, file_format, alphabet=alphabet):
 					sequence_count += 1
-					result = True
-					if not self.validate_sequence(seq_record.seq, key=key, silent=silent):
-						result = False
-					if not self.validate_sequence_id(seq_record.id, used_ids=set_of_seq_id, key=key, silent=silent):
-						result = False
-					set_of_seq_id.add(seq_record.id)
-					if not self.validate_sequence_description(seq_record.description, key=key, silent=silent):
-						result = False
-					if file_format == "fastq":
-						if not self.validate_sequence_quality(
-							seq_record.letter_annotations["phred_quality"], key=key, silent=silent):
-							result = False
-					if not result:
+					if not self._validate_sequence_record(seq_record, set_of_seq_id, file_format, key=None, silent=False):
 						if not silent:
 							self._logger.error("{}{}. sequence '{}' is invalid.".format(prefix, sequence_count, seq_record.id))
 						return False
@@ -124,27 +148,27 @@ class SequenceValidator(Validator):
 				return False
 		return True
 
-	def _validate_file_start(self, file_handle, file_format):
+	def _validate_file_start(self, stream_handle, file_format):
 		"""
 			Validate that a stream with sequences starts with the correct character
 
-			@param file_handle: Any kind of stream type
-			@type file_handle: file | io.FileIO | StringIO.StringIO
+			@param stream_handle: Any kind of stream type
+			@type stream_handle: file | io.FileIO | StringIO.StringIO
 			@param file_format: Format of the file at the file_path provided. Valid: 'fasta', 'fastq'
 			@type file_format: str | unicode
 
 			@return: True if the first character is correct
 			@rtype: bool
 		"""
-		assert self._is_stream(file_handle)
+		assert self.is_stream(stream_handle)
 		assert isinstance(file_format, basestring)
 		file_format = file_format.lower()
 		assert file_format in self._formats
 
 		sequence_indicator = self._sequence_indicators[file_format]
 
-		head = file_handle.read(1)
-		file_handle.seek(0)
+		head = stream_handle.read(1)
+		stream_handle.seek(0)
 		if not head:
 			return False
 		if not head.startswith(sequence_indicator):

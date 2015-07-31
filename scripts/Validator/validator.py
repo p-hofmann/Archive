@@ -1,45 +1,47 @@
 __author__ = 'hofmann'
-__version__ = '0.0.4'
+__version__ = '0.1.2'
 
 import os
+import glob
 import math
 import string
 from numbers import Number
-from scripts.loggingwrapper import LoggingWrapper
+from scripts.loggingwrapper import DefaultLogging
 
 
-class Validator(object):
+class Validator(DefaultLogging):
 
-	_map_logfile_handler = dict()
 	_label = "Validator"
 
-	def __init__(self, logfile=None, verbose=False):
+	_boolean_states = {
+		'yes': True, 'true': True, 'on': True,
+		'no': False, 'false': False, 'off': False,
+		'y': True, 't': True, 'n': False, 'f': False}
+
+	def is_boolean_state(self, word):
 		"""
-			Collection of methods for value validations
+			Test for boolean state
 
-			@attention: config_file argument may be file path or stream.
+			@param word: A word
+			@type word: str | unicode
 
-			@param logfile: file handler or file path to a log file
-			@type logfile: file | FileIO | None
-			@param verbose: Not verbose means that only warnings and errors will be past to stream
-			@type verbose: bool
-
-			@return: None
-			@rtype: None
+			@return: True if word is identified as an word equivalent to true or false
+			@rtype: bool
 		"""
-		self._logger = LoggingWrapper(self._label, verbose=verbose)
-		if logfile:
-			self._logger.set_log_file(logfile)
+		return str(word) in self._boolean_states
 
-	def __exit__(self, type, value, traceback):
-		self.close()
+	def get_boolean_state(self, word):
+		"""
+			Get boolean from word
 
-	def __enter__(self):
-		return self
+			@param word: A word
+			@type word: str | unicode
 
-	def close(self):
-		self._logger.close()
-		self._logger = None
+			@return: True if word is identified as an word equivalent to true
+			@rtype: bool
+		"""
+		assert str(word) in self._boolean_states
+		return self._boolean_states[str(word)]
 
 	def validate_file(self, file_path, executable=False, key=None, silent=False):
 		"""
@@ -69,10 +71,21 @@ class Validator(object):
 				self._logger.error("{}Invalid directory".format(prefix))
 			return False
 
-		file_path = self.get_full_path(file_path)
-		parent_directory = os.path.dirname(file_path)
-		if not self.validate_dir(parent_directory, key=key):
+		# file_path = self.get_full_path(file_path)
+		parent_directory, filename = os.path.split(file_path)
+
+		if parent_directory and not self.validate_dir(parent_directory, key=key):
+			if not silent:
+				self._logger.error("{}Directory of file does not exist: '{}'".format(prefix, parent_directory))
 			return False
+
+		if executable and not parent_directory and not os.path.isfile(file_path):
+			for path in os.environ["PATH"].split(os.pathsep):
+				path = path.strip('"')
+				exe_file = os.path.join(path, filename)
+				if os.path.isfile(exe_file):
+					file_path = exe_file
+					break
 
 		if not os.path.isfile(file_path):
 			if not silent:
@@ -211,6 +224,38 @@ class Validator(object):
 		value = os.path.normpath(value)
 		value = os.path.abspath(value)
 		return value
+
+	@staticmethod
+	def get_files_in_directory(directory, extension=None):
+		"""
+			Get all files within a directory
+
+			@param directory: A directory
+			@type directory: basestring
+			@param extension: file extension to be filtered for
+			@type extension: str | unicode | None
+
+			@return: list of files that reflect the filter
+			@rtype: list[str|unicode]
+		"""
+		assert extension is None or isinstance(extension, basestring)
+		assert isinstance(directory, basestring)
+		directory = Validator.get_full_path(directory)
+		assert os.path.isdir(directory)
+
+		if extension.startswith('.'):
+			extension = extension[1:]
+
+		list_of_file = []
+		if extension is None:
+			list_of_items = glob.glob(os.path.join(directory, "*"))
+		else:
+			list_of_items = glob.glob(os.path.join(directory, "*.{}".format(extension)))
+
+		for item in list_of_items:
+			if os.path.isfile(item):
+				list_of_file.append(item)
+		return list_of_file
 
 	def validate_number(self, digit, minimum=None, maximum=None, zero=True, key=None, silent=False):
 		"""
