@@ -51,7 +51,7 @@ class Compress(Validator):
 			@return: None
 			@rtype: None
 		"""
-		assert logfile is None or isinstance(logfile, basestring) or self._is_stream(logfile)
+		assert logfile is None or isinstance(logfile, basestring) or self.is_stream(logfile)
 		assert isinstance(default_compression, basestring), "separator must be string"
 		assert isinstance(verbose, bool), "verbose must be true or false"
 		assert default_compression.lower() in self._open, "Unknown compression: '{}'".format(default_compression)
@@ -63,19 +63,6 @@ class Compress(Validator):
 		# 	self._logger.set_log_file(logfile)
 
 		self._default_compression = default_compression
-
-	@staticmethod
-	def _is_stream(stream):
-		"""
-			Test for stream
-
-			@param stream: Any kind of stream type
-			@type stream: file | io.FileIO | StringIO.StringIO
-
-			@return: True if stream
-			@rtype: bool
-		"""
-		return isinstance(stream, (file, io.FileIO, StringIO.StringIO)) or stream.__class__ is StringIO.StringIO
 
 	def get_compression_type(self, file_path):
 		"""
