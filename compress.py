@@ -241,7 +241,7 @@ class Compress(Validator):
 				raise IOError(msg)
 		list_of_return_values = runThreadParallel(task_list, maxThreads=max_processors)
 		for index, return_value in enumerate(list_of_return_values):
-			assert return_value is None, "Compressing of '{}' failed. '{}'".format(list_of_file_paths[index], return_value)
+			assert return_value is None, "Compressing of '{}' failed. '{}'".format(list_of_tuples[index][0], return_value)
 
 
 def _compress_file(src, dst='./', compresslevel=5, compression_type=None, overwrite=False):
