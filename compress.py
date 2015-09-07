@@ -1,5 +1,5 @@
 __author__ = 'hofmann'
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 import os
 import io
@@ -35,7 +35,7 @@ class Compress(Validator):
 
 	_modes = ['r', 'w']
 
-	def __init__(self, default_compression="gz", logfile=None, verbose=True):
+	def __init__(self, default_compression="gz", logfile=None, verbose=True, debug=False):
 		"""
 			Constructor
 
@@ -47,6 +47,8 @@ class Compress(Validator):
 			@type logfile: file | io.FileIO | StringIO.StringIO | basestring
 			@param verbose: Not verbose means that only warnings and errors will be past to stream
 			@type verbose: bool
+			@param debug: Display debug messages
+			@type debug: bool
 
 			@return: None
 			@rtype: None
@@ -56,7 +58,7 @@ class Compress(Validator):
 		assert isinstance(verbose, bool), "verbose must be true or false"
 		assert default_compression.lower() in self._open, "Unknown compression: '{}'".format(default_compression)
 
-		super(Compress, self).__init__(logfile, verbose)
+		super(Compress, self).__init__(logfile, verbose, debug)
 
 		# self._logger = LoggingWrapper(self._label, verbose=verbose)
 		# if logfile is not None:
@@ -232,6 +234,7 @@ class Compress(Validator):
 		"""
 		task_list = []
 		for file_path, dst in list_of_tuples:
+			self._logger.debug("Compressing '{file}' to '{dst}'".format(file=file_path, dst=dst))
 			if not self.validate_dir(dst, silent=True):
 				assert self.validate_dir(dst, only_parent=True), "Bad destination: '{}'.".format(dst)
 			if self.validate_file(file_path):
