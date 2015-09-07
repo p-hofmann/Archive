@@ -193,7 +193,8 @@ class Compress(Validator):
 			@return: True if stream
 			@rtype: None
 		"""
-		assert self.validate_dir(dst), "Bad destination: '{}'".format(dst)
+		if not self.validate_dir(dst, silent=True):
+			assert self.validate_dir(dst, only_parent=True), "Bad destination: '{}'".format(dst)
 		task_list = []
 		for file_path in list_of_file_paths:
 			if self.validate_file(file_path):
@@ -231,7 +232,8 @@ class Compress(Validator):
 		"""
 		task_list = []
 		for file_path, dst in list_of_tuples:
-			assert self.validate_dir(dst), "Bad destination: '{}', must be folder.".format(dst)
+			if not self.validate_dir(dst, silent=True):
+				assert self.validate_dir(dst, only_parent=True), "Bad destination: '{}'.".format(dst)
 			if self.validate_file(file_path):
 				args = (file_path, dst, compresslevel, compression_type, overwrite)
 				task_list.append(TaskThread(_compress_file, args))
