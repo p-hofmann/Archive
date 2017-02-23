@@ -1,10 +1,11 @@
 __author__ = 'hofmann'
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
+import os
 import io
-import StringIO
-from compress import Compress
+import zipfile
 import tarfile
+from compress import Compress
 
 
 class Archive(Compress):
@@ -74,7 +75,7 @@ class Archive(Compress):
         @return: True if file is archive
         @rtype: str | None
         """
-        return tarfile.is_tarfile(file_path)
+        return tarfile.is_tarfile(file_path) or zipfile.is_zipfile(file_path)
 
     def open_archive(self, file_path, compression_type=None, mode='r'):
         """
@@ -98,3 +99,45 @@ class Archive(Compress):
 
         mode = self._modes[mode][compression_type]
         return self._open[compression_type](file_path, mode=mode)
+
+    @staticmethod
+    def zip_directory(src_dir, dst):
+        assert os.path.isdir(src_dir)
+        with Archive._open["zip"](dst, 'w', zipfile.ZIP_DEFLATED) as write_handler:
+            Archive.zip_stream(src_dir, write_handler)
+
+    @staticmethod
+    def zip_stream(src_dir, output_stream):
+        """
+
+        @param src_dir:
+        @type src_dir: str
+        @param output_stream:
+        @type output_stream: zipfile.ZipFile
+        @return:
+        """
+        root_path = os.path.dirname(src_dir)
+        assert os.path.isdir(src_dir)
+        for root, directories, files in os.walk(src_dir):
+            for file_name in files:
+                file_path = os.path.join(root, file_name)
+                relative_path = os.path.relpath(file_path, root_path)
+                output_stream.write(file_path, arcname=relative_path)
+
+    def zip_decompress_all(self, file_path, output_directory):
+        assert self.validate_dir(output_directory, only_parent=True)
+        with Archive._open["zip"](file_path, "r") as read_handler:
+            read_handler.extractall(output_directory)
+
+    def tar_decompress_all(self, file_path, output_directory):
+        assert self.validate_dir(output_directory, only_parent=True)
+        with tarfile.open(file_path) as read_handler:
+            read_handler.extractall(output_directory)
+
+    def extract_all(self, file_path, output_directory, compression_type=None, mode='r'):
+        if compression_type is None:
+            compression_type = self.get_compression_type(file_path)
+        if compression_type == "zip":
+            self.zip_decompress_all(file_path, output_directory)
+        assert compression_type in Archive._archive_mode_read_stream
+        self.tar_decompress_all(file_path, output_directory)
